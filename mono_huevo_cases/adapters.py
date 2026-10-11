@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .domain import Identity, Platform
+from .domain import Identity, IdentityBasis, Platform
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,7 @@ class ReportEvent:
     subject: Identity
     evidence: tuple[str, ...]
     summary: str
+    subject_identity_basis: IdentityBasis
 
 
 class MockDiscordAdapter:
@@ -27,6 +28,7 @@ class MockDiscordAdapter:
             subject=Identity(Platform.DISCORD, subject_discord_id),
             evidence=evidence,
             summary=summary,
+            subject_identity_basis=IdentityBasis.DISCORD_NATIVE,
         )
 
 
@@ -43,4 +45,5 @@ class MockHLLAdapter:
             subject=Identity(Platform.STEAM, subject_steam_id),
             evidence=evidence,
             summary=summary,
+            subject_identity_basis=IdentityBasis.HLL_NATIVE,
         )
