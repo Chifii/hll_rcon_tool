@@ -1,0 +1,8 @@
+{
+  "roles": {
+    "discord-user-demo": "member",
+    "steam-user-demo": "member",
+    "operator-demo": "operator",
+    "owner-demo": "owner"
+  }
+}
