@@ -1,0 +1,24 @@
+services:
+  discord-gateway:
+    profiles: ["discord-gateway"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["python"]
+    command:
+      - -m
+      - mono_huevo_cases.discord_gateway_runner
+      - --config
+      - /run/secrets-local/discord-gateway.json
+      - --token-file
+      - /run/secrets-local/discord-bot-token
+      - --data
+      - /var/lib/mono-huevo/cases.sqlite3
+      - --enable
+    restart: "no"
+    volumes:
+      - ./.local-secrets:/run/secrets-local:ro
+      - mono_huevo_case_data:/var/lib/mono-huevo
+
+volumes:
+  mono_huevo_case_data:

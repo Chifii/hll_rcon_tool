@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "guild_id": "REPLACE_WITH_DISCORD_GUILD_ID",
+  "owner_discord_id": "REPLACE_WITH_OWNER_DISCORD_ID",
+  "staff_role_ids": []
+}

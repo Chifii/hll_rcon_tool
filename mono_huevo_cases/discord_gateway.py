@@ -121,7 +121,7 @@ async def _ephemeral(interaction: Any, content: str) -> None:
 
 
 def build_discord_client(config: DiscordGatewayConfig, store: CaseStore) -> Any:
-    """Build a client without logging in or syncing its guild commands."""
+    """Build a client without logging in; login syncs only configured guild commands."""
     if not config.enabled:
         raise GatewayDisabled("Discord gateway is disabled")
     try:
@@ -136,6 +136,13 @@ def build_discord_client(config: DiscordGatewayConfig, store: CaseStore) -> Any:
     intents.guilds = True
     client = discord.Client(intents=intents)
     tree = app_commands.CommandTree(client)
+
+    async def setup_hook() -> None:
+        # discord.py calls setup_hook only after an explicit login. This is the
+        # sole registration path: no global command sync and no import side effect.
+        await tree.sync(guild=guild)
+
+    client.setup_hook = setup_hook
 
     @tree.command(name="reportar", description="Enviar un reporte para revisión humana", guild=guild)
     @app_commands.describe(

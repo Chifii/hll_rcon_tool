@@ -25,6 +25,10 @@ Dockerfile*
 # Compose loads these
 *.env
 .env.*
+.env
+.local-secrets/
+.local-data/
+settings.local.json
 
 # Don't need in image
 tests

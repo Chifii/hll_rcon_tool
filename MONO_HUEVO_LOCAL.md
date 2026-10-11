@@ -34,14 +34,32 @@ The `settings.local.json` role map exists only to exercise offline authorization
 
 AI is not wired in. If introduced later, its output should be a non-binding recommendation stored with provenance; humans remain responsible for every decision.
 
-## Discord permissions to request for a future implementation
+## Discord pilot permissions
 
-For the planned interaction-only flow (`/report`, `/case review`, `/case approve`, `/case reject`, `/vip propose`) use guild-scoped commands for private testing. With Discord's HTTP interaction endpoint, request the `applications.commands` OAuth scope and no guild permission bitfield. If we choose a long-running Gateway bot instead, install it with `bot` plus `applications.commands` and a zero-permission bot role for command interactions. If it must post case summaries into a staff channel, add only `View Channel` and `Send Messages` there, plus `Embed Links` only if the chosen format needs embeds. Keep moderation permissions such as `Ban Members`, `Kick Members`, `Manage Messages`, and `Administrator` disabled.
+The pilot uses `/reportar` and `/caso` guild-scoped commands. Install with `bot` plus `applications.commands` OAuth scopes and a zero-permission bot role. It does not post to channels. Keep `Ban Members`, `Kick Members`, `Manage Messages`, and `Administrator` disabled.
 
-The interaction-only design needs no Gateway privileged intents. Do not enable `MESSAGE_CONTENT`, `GUILD_MEMBERS`, or `GUILD_PRESENCES`; if a future request changes the design to read ordinary chat messages, revisit that scope explicitly. `GUILDS` is a non-privileged intent and may be used by a Gateway library for guild metadata. See Discord's [Application Commands](https://docs.discord.com/developers/interactions/application-commands) and [Gateway intents](https://docs.discord.com/developers/events/gateway) docs. Actual slash-command adapter, bot application, guild, and tokens are deliberately not created in this step.
+The Gateway pilot uses only the non-privileged `GUILDS` intent; do not enable `MESSAGE_CONTENT`, `GUILD_MEMBERS`, or `GUILD_PRESENCES`. The slash-command adapter and a gated runner are implemented, but no bot application, guild installation, terms acceptance, or token setup has occurred. See Discord's [Application Commands](https://docs.discord.com/developers/interactions/application-commands) and [Gateway intents](https://docs.discord.com/developers/events/gateway) docs.
 
 ## Local to Beelink
 
-The source is portable and the runtime needs only Python 3.11+; current Mac Python 3.13.5 is compatible. Before a Beelink move, stop the process, copy the ignored settings and SQLite database over a secure channel, check filesystem permissions, and start with a backup. Do not copy any credential because this prototype has none. Keep any later Discord token in the host's secret store/environment, outside the repository and command-line arguments.
+The source is portable and the runtime needs Python 3.12+ (matching upstream); current Mac Python 3.13.5 is compatible. For a Beelink move, stop the process, transfer the ignored config/token and SQLite data over a secure channel, check filesystem permissions, and start with a backup. Local credential entry uses hidden prompts and 0600 files outside Git.
 
-Docker Compose is installed on this Mac, but the Docker daemon is currently unavailable. The prototype is a one-shot CLI with no service port, so it has no Compose service to expose yet. CRCON's own Compose config is separate and was not started; its server-specific RCON credentials and a running HLL game server are not configured here.
+The offline gateway is explicitly gated and not started. To prepare local config only after the Discord setup decision, copy `examples/discord-gateway.local.example.json` to `.local-secrets/discord-gateway.json`, edit it, then `chmod 600` the file. `python3 scripts/local_secrets.py set-discord-token` stores a supplied token using a hidden prompt; `python3 scripts/local_secrets.py check` reports presence only. The runner requires both `enabled: true` and `--enable` and syncs only guild-scoped commands upon login.
+
+## Docker on this Mac
+
+`docker-compose.local.base.yaml` is the v12.3.0 one-server template rooted at the repository directory. Combine it with `docker-compose.dev.yml` and `docker-compose.local.yaml`. The local override pins every published port to loopback (`8780`, `8781`, `55432`, `56380`) and sets restart policies to `no`. The standalone gateway profile in `compose.gateway.local.yaml` exposes no ports and has restart disabled.
+
+Earlier in this task, a standalone Redis test was bound to `127.0.0.1:56379`; the full CRCON stack therefore publishes its Redis at `127.0.0.1:56380`. This avoids stopping or reconfiguring that existing container.
+
+The local initializer generates `HLL_DB_PASSWORD` and `RCONWEB_API_SECRET` with Python's system CSPRNG into ignored `.env` (mode 0600). It sets `DONT_SEED_ADMIN_USER=1` to prevent upstream's insecure `admin/admin` account. The game endpoint is deliberately `127.0.0.1:1` with a non-real placeholder password, so no remote HLL service is contacted. `scripts/local_secrets.py create-crcon-admin` prompts for your username and password twice with hidden password input, then sends it over stdin to a local one-off Django command; it does not store the password. The upstream entrypoint's environment dump and shell tracing were removed to keep runtime secrets out of logs. Discord login, terms, app installation, and token remain unapproved/unconfigured.
+
+Build succeeded, but the first CRCON backend start is blocked: upstream runs `remove_orphaned_map_ids` during startup and immediately calls live RCON `GetClientReferenceData`. With the intentionally disconnected `127.0.0.1:1` target it exits with `ConnectionRefusedError` before its healthcheck. Postgres, Redis and migrations were healthy. This upstream has no disconnected startup mode. I stopped the partial CRCON stack after recording this, preserving its ignored local DB/log data; no game server was contacted. The server's HLLServer executable and real RCON password are still unavailable. The admin input command must wait until the backend has a usable HLL RCON endpoint.
+
+After `.env` has been initialized, the local CRCON start command is:
+
+```sh
+docker compose -f docker-compose.local.base.yaml -f docker-compose.dev.yml -f docker-compose.local.yaml up --build -d
+```
+
+The override binds web, stats, Postgres, and Redis only to `127.0.0.1` and disables automatic restarts. Wait for `maintenance`, `backend_1`, and `frontend_1` health before running `python3 scripts/local_secrets.py create-crcon-admin`. No game-server RCON password is configured, and the server cannot be reached through this dummy loopback target.

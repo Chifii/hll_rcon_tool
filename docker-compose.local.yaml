@@ -1,0 +1,38 @@
+# Local-only override for the upstream one-server template.
+# Every published port is loopback-only; no service restarts automatically.
+services:
+  redis:
+    restart: "no"
+    ports: !override
+      - target: 6379
+        published: "56380"
+        host_ip: 127.0.0.1
+
+  postgres:
+    restart: "no"
+    ports: !override
+      - target: 5432
+        published: "55432"
+        host_ip: 127.0.0.1
+
+  maintenance:
+    restart: "no"
+
+  webhook_service:
+    restart: "no"
+
+  backend_1:
+    restart: "no"
+
+  supervisor_1:
+    restart: "no"
+
+  frontend_1:
+    restart: "no"
+    ports: !override
+      - target: 80
+        published: "8780"
+        host_ip: 127.0.0.1
+      - target: 81
+        published: "8781"
+        host_ip: 127.0.0.1

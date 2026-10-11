@@ -1,6 +1,14 @@
 # Local-only prototype state and configuration
 .local-data/
+.local-secrets/
 settings.local.json
+.env
+db_data/
+logs/
+redis_data/
+servicediscovery/
+supervisor_data/
+certs/
 __pycache__/
 *.py[cod]
 .venv/

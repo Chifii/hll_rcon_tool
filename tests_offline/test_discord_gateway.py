@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from mono_huevo_cases.discord_gateway import (
-    DiscordGateway, DiscordGatewayConfig, GatewayDisabled, InvalidInteraction, _ephemeral,
+    DiscordGateway, DiscordGatewayConfig, GatewayDisabled, InvalidInteraction,
+    _ephemeral, build_discord_client,
 )
 from mono_huevo_cases.domain import CaseStatus, IdentityBasis, Platform
 from mono_huevo_cases.store import CaseStore
@@ -124,6 +127,57 @@ class DiscordGatewayTests(unittest.TestCase):
         interaction.role = "owner"
         _, actor = self.gateway._actor(interaction)
         self.assertEqual(actor.role, "member")
+
+    def test_client_setup_hook_syncs_only_configured_guild_after_explicit_login(self) -> None:
+        class Choice:
+            def __class_getitem__(cls, item):
+                return cls
+
+            def __init__(self, *, name, value):
+                self.name, self.value = name, value
+
+        class IntentSet:
+            @classmethod
+            def none(cls):
+                return cls()
+
+            guilds = False
+
+        class Tree:
+            def __init__(self, client):
+                self.sync = AsyncMock()
+                client.tree = self
+
+            def command(self, **kwargs):
+                return lambda fn: fn
+
+        fake_client = SimpleNamespace()
+        fake_discord = types.ModuleType("discord")
+        fake_discord.Object = lambda *, id: SimpleNamespace(id=id)
+        fake_discord.Intents = IntentSet
+        fake_discord.Client = lambda *, intents: setattr(fake_client, "intents", intents) or fake_client
+        fake_discord.Interaction = type("Interaction", (), {})
+        fake_discord.Choice = Choice
+        fake_apps = types.ModuleType("discord.app_commands")
+        fake_apps.CommandTree = Tree
+        fake_apps.Choice = Choice
+        fake_apps.describe = lambda **kwargs: lambda fn: fn
+        fake_apps.choices = lambda **kwargs: lambda fn: fn
+        fake_discord.app_commands = fake_apps
+        with unittest.mock.patch.dict(sys.modules, {
+            "discord": fake_discord, "discord.app_commands": fake_apps,
+        }):
+            client = build_discord_client(
+                DiscordGatewayConfig("123456", "234567", frozenset(), enabled=True), self.store,
+            )
+        self.assertIs(client, fake_client)
+        self.assertTrue(client.intents.guilds)
+        self.assertFalse(getattr(client.intents, "message_content", False))
+        # Building is offline; the sync occurs only when discord.py invokes setup_hook on login.
+        client.tree.sync.assert_not_awaited()
+        asyncio.run(fake_client.setup_hook())
+        self.assertEqual(client.tree.sync.call_args.kwargs["guild"].id, 123456)
+        client.tree.sync.assert_awaited_once()
 
 
 if __name__ == "__main__":
